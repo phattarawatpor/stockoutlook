@@ -319,17 +319,23 @@ def _translate_chunk_en_to_th(translator, text: str, retries: int = 2) -> str:
             delay *= 2
 
 
-def translate_to_thai(text: str) -> str | None:
+def translate_to_thai(text: str, email: str = "") -> str | None:
     """Best-effort English -> Thai translation via the free MyMemory
     translation API (deep-translator). Returns None on any failure (offline,
     rate-limited, text too long, etc) so callers can fall back to showing
-    only the English original."""
+    only the English original.
+
+    `email` is optional but strongly recommended: MyMemory caps anonymous
+    requests at 5,000 words/day, but honors any registered email passed as
+    the `de` parameter for a 50,000 words/day quota -- no signup required,
+    it's just a query param MyMemory checks."""
     text = (text or "").strip()
     if not text:
         return None
     try:
         from deep_translator import MyMemoryTranslator
-        translator = MyMemoryTranslator(source="en-US", target="th-TH")
+        kwargs = {"email": email} if email else {}
+        translator = MyMemoryTranslator(source="en-US", target="th-TH", **kwargs)
         return _translate_chunk_en_to_th(translator, text)
     except Exception:
         return None
@@ -376,14 +382,18 @@ def _split_into_chunks(paragraph: str, chunk_size: int) -> list[str]:
     return chunks
 
 
-def translate_long_text_to_thai(text: str, chunk_size: int = 450) -> str | None:
+def translate_long_text_to_thai(text: str, chunk_size: int = 450, email: str = "") -> str | None:
     """Translate longer text (e.g. a full scraped article) to Thai,
     preserving the original paragraph breaks so the result reads as
     paragraphs instead of one wall of text. Each paragraph is split into
     MyMemory-request-sized chunks along sentence boundaries when needed.
     Returns None if any chunk fails, so callers fall back to whatever
     shorter translation they already have rather than showing a
-    partially-translated article."""
+    partially-translated article.
+
+    A full article is many chunks, which burns through MyMemory's tiny
+    5,000 words/day anonymous quota fast -- pass `email` (see
+    `translate_to_thai`) to use the 50,000 words/day quota instead."""
     text = (text or "").strip()
     if not text:
         return None
@@ -394,7 +404,8 @@ def translate_long_text_to_thai(text: str, chunk_size: int = 450) -> str | None:
 
     try:
         from deep_translator import MyMemoryTranslator
-        translator = MyMemoryTranslator(source="en-US", target="th-TH")
+        kwargs = {"email": email} if email else {}
+        translator = MyMemoryTranslator(source="en-US", target="th-TH", **kwargs)
         translated_paragraphs = []
         for paragraph in paragraphs:
             chunk_translations = []

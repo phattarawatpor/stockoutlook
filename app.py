@@ -59,9 +59,24 @@ def _parse_ticker_option(raw: str) -> str:
     return symbol.strip().upper()
 
 
+try:
+    _alpaca_secrets = st.secrets.get("alpaca", {})
+except Exception:
+    _alpaca_secrets = {}
+ALPACA_KEY_ID = _alpaca_secrets.get("api_key_id", "")
+ALPACA_SECRET_KEY = _alpaca_secrets.get("secret_key", "")
+
+try:
+    MYMEMORY_EMAIL = st.secrets.get("mymemory", {}).get("email", "")
+except Exception:
+    MYMEMORY_EMAIL = ""
+
+MARKET_CLOSED_TODAY = is_us_market_closed_today()
+
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def _cached_translate(text: str) -> str | None:
-    return translate_to_thai(text)
+    return translate_to_thai(text, email=MYMEMORY_EMAIL)
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -73,19 +88,10 @@ def _cached_full_article_th(url: str) -> tuple[str, str | None]:
     full_text = fetch_full_article_text(url)
     if not full_text:
         return "fetch_failed", None
-    translated = translate_long_text_to_thai(full_text)
+    translated = translate_long_text_to_thai(full_text, email=MYMEMORY_EMAIL)
     if not translated:
         return "translate_failed", None
     return "ok", translated
-
-try:
-    _alpaca_secrets = st.secrets.get("alpaca", {})
-except Exception:
-    _alpaca_secrets = {}
-ALPACA_KEY_ID = _alpaca_secrets.get("api_key_id", "")
-ALPACA_SECRET_KEY = _alpaca_secrets.get("secret_key", "")
-
-MARKET_CLOSED_TODAY = is_us_market_closed_today()
 
 st.set_page_config(page_title="Stock Outlook Dashboard", page_icon="📈", layout="wide")
 
