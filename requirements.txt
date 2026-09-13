@@ -5,3 +5,4 @@ plotly>=5.20
 deep-translator>=1.11
 trafilatura>=2.0
 tzdata>=2024.1
+gTTS>=2.5

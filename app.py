@@ -33,9 +33,15 @@ from analysis import (
     fetch_us_ticker_directory,
     is_us_market_closed_today,
     project_range_from_price,
+    text_to_speech_thai,
     translate_long_text_to_thai,
     translate_to_thai,
 )
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _cached_tts(text: str) -> bytes | None:
+    return text_to_speech_thai(text)
 
 
 @st.cache_data(ttl=86400, show_spinner="กำลังโหลดรายชื่อหุ้นทั้งหมด...")
@@ -438,6 +444,13 @@ else:
                 if full_th:
                     with st.expander("เนื้อข่าวเต็ม (แปลไทย)", expanded=True):
                         st.write(full_th)
+                        if st.button("🔊 ฟังเนื้อข่าวเต็ม (ไทย)", key=f"tts_full_{i}"):
+                            with st.spinner("กำลังสร้างเสียงอ่านข่าว..."):
+                                audio = _cached_tts(full_th)
+                            if audio:
+                                st.audio(audio, format="audio/mp3")
+                            else:
+                                st.warning("สร้างเสียงไม่สำเร็จ ลองใหม่อีกครั้ง")
                 else:
                     st.warning(
                         "ดึง/แปลเนื้อข่าวเต็มไม่สำเร็จ — อาจเพราะเว็บต้นทางกันการดึงข้อมูล มี paywall "

@@ -409,6 +409,26 @@ def translate_long_text_to_thai(text: str, chunk_size: int = 450) -> str | None:
     return "\n\n".join(translated_paragraphs)
 
 
+def text_to_speech_thai(text: str) -> bytes | None:
+    """Best-effort Thai text-to-speech via the free gTTS (Google Translate
+    TTS) service. gTTS itself chunks long text by sentence internally, so
+    this accepts full-length article translations, not just short titles.
+    Returns MP3 bytes, or None on failure (offline, service unavailable,
+    empty text, etc)."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        import io
+
+        from gtts import gTTS
+        buf = io.BytesIO()
+        gTTS(text[:5000], lang="th").write_to_fp(buf)
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
 def fetch_live_price(ticker: str) -> float | None:
     """Latest traded price (~15-20 min delayed per Yahoo Finance), or None if unavailable."""
     try:
