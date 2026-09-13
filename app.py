@@ -65,11 +65,18 @@ def _cached_translate(text: str) -> str | None:
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def _cached_full_article_th(url: str) -> str | None:
+def _cached_full_article_th(url: str) -> tuple[str, str | None]:
+    """Returns (stage, text). stage is "ok", "fetch_failed" (trafilatura
+    couldn't scrape the article), or "translate_failed" (scrape worked but
+    MyMemory translation failed) -- kept separate so the UI can tell users
+    which step broke instead of one generic error."""
     full_text = fetch_full_article_text(url)
     if not full_text:
-        return None
-    return translate_long_text_to_thai(full_text)
+        return "fetch_failed", None
+    translated = translate_long_text_to_thai(full_text)
+    if not translated:
+        return "translate_failed", None
+    return "ok", translated
 
 try:
     _alpaca_secrets = st.secrets.get("alpaca", {})
@@ -440,8 +447,8 @@ else:
                 st.session_state[full_key] = True
             if st.session_state.get(full_key):
                 with st.spinner("กำลังดึงและแปลเนื้อข่าวเต็ม..."):
-                    full_th = _cached_full_article_th(link)
-                if full_th:
+                    stage, full_th = _cached_full_article_th(link)
+                if stage == "ok":
                     with st.expander("เนื้อข่าวเต็ม (แปลไทย)", expanded=True):
                         st.write(full_th)
                         if st.button("🔊 ฟังเนื้อข่าวเต็ม (ไทย)", key=f"tts_full_{i}"):
@@ -451,10 +458,14 @@ else:
                                 st.audio(audio, format="audio/mp3")
                             else:
                                 st.warning("สร้างเสียงไม่สำเร็จ ลองใหม่อีกครั้ง")
-                else:
+                elif stage == "fetch_failed":
                     st.warning(
-                        "ดึง/แปลเนื้อข่าวเต็มไม่สำเร็จ — อาจเพราะเว็บต้นทางกันการดึงข้อมูล มี paywall "
-                        "หรือบริการแปลฟรีติดขัดชั่วคราว ลองกดใหม่อีกครั้ง หรือกดลิงก์หัวข้อข่าวด้านบนเพื่อไปอ่านที่ต้นทาง"
+                        "ดึงเนื้อข่าวเต็มจากเว็บต้นทางไม่สำเร็จ — อาจเพราะเว็บกันการดึงข้อมูลอัตโนมัติ หรือมี paywall "
+                        "ลองกดใหม่ หรือกดลิงก์หัวข้อข่าวด้านบนเพื่อไปอ่านที่ต้นทางแทน"
+                    )
+                else:  # translate_failed
+                    st.warning(
+                        "ดึงเนื้อข่าวเต็มสำเร็จ แต่แปลไม่สำเร็จ — บริการแปลฟรี (MyMemory) อาจติดขัดชั่วคราว ลองกดใหม่อีกสักครู่"
                     )
 
         st.divider()
