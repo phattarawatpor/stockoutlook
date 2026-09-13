@@ -355,17 +355,13 @@ def fetch_full_article_text(url: str) -> str | None:
         return None
 
 
-def translate_long_text_to_thai(text: str, chunk_size: int = 450) -> str | None:
-    """Translate longer text (e.g. a full scraped article) to Thai by
-    splitting it into MyMemory-request-sized chunks along sentence
-    boundaries and translating each in turn. Returns None if any chunk
-    fails, so callers fall back to whatever shorter translation they
-    already have rather than showing a partially-translated article."""
-    text = (text or "").strip()
-    if not text:
-        return None
-
-    sentences = re.split(r"(?<=[.!?])\s+", text)
+def _split_into_chunks(paragraph: str, chunk_size: int) -> list[str]:
+    """Split one paragraph into MyMemory-request-sized pieces along
+    sentence boundaries (paragraphs shorter than chunk_size pass through
+    as a single piece, so short paragraphs never get merged together)."""
+    if len(paragraph) <= chunk_size:
+        return [paragraph]
+    sentences = re.split(r"(?<=[.!?])\s+", paragraph)
     chunks: list[str] = []
     current = ""
     for sentence in sentences:
@@ -377,19 +373,40 @@ def translate_long_text_to_thai(text: str, chunk_size: int = 450) -> str | None:
             current = candidate
     if current:
         chunks.append(current)
+    return chunks
+
+
+def translate_long_text_to_thai(text: str, chunk_size: int = 450) -> str | None:
+    """Translate longer text (e.g. a full scraped article) to Thai,
+    preserving the original paragraph breaks so the result reads as
+    paragraphs instead of one wall of text. Each paragraph is split into
+    MyMemory-request-sized chunks along sentence boundaries when needed.
+    Returns None if any chunk fails, so callers fall back to whatever
+    shorter translation they already have rather than showing a
+    partially-translated article."""
+    text = (text or "").strip()
+    if not text:
+        return None
+
+    paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+    if not paragraphs:
+        return None
 
     try:
         from deep_translator import MyMemoryTranslator
         translator = MyMemoryTranslator(source="en-US", target="th-TH")
-        translated_chunks = []
-        for chunk in chunks:
-            translated_chunks.append(_translate_chunk_en_to_th(translator, chunk))
-            time.sleep(0.35)  # stay under MyMemory's free-tier burst limit
+        translated_paragraphs = []
+        for paragraph in paragraphs:
+            chunk_translations = []
+            for chunk in _split_into_chunks(paragraph, chunk_size):
+                chunk_translations.append(_translate_chunk_en_to_th(translator, chunk))
+                time.sleep(0.35)  # stay under MyMemory's free-tier burst limit
+            translated_paragraphs.append(" ".join(chunk_translations))
     except Exception:
         return None
-    if any(not c for c in translated_chunks):
+    if any(not p for p in translated_paragraphs):
         return None
-    return " ".join(translated_chunks)
+    return "\n\n".join(translated_paragraphs)
 
 
 def fetch_live_price(ticker: str) -> float | None:
