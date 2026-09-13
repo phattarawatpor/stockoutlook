@@ -18,6 +18,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from analysis import (
+    THAI_TICKERS,
     analyze_news_sentiment,
     compute_minute_projection,
     compute_momentum,
@@ -29,11 +30,27 @@ from analysis import (
     fetch_live_price,
     fetch_news,
     fetch_next_earnings_date,
+    fetch_us_ticker_directory,
     is_us_market_closed_today,
     project_range_from_price,
     translate_long_text_to_thai,
     translate_to_thai,
 )
+
+
+@st.cache_data(ttl=86400, show_spinner="กำลังโหลดรายชื่อหุ้นทั้งหมด...")
+def _cached_ticker_options() -> list[str]:
+    us = fetch_us_ticker_directory()
+    if not us:
+        us = [("GOOGL", "Alphabet Inc."), ("AAPL", "Apple Inc."), ("MSFT", "Microsoft Corp.")]
+    all_tickers = us + THAI_TICKERS
+    return [f"{symbol} — {name}" for symbol, name in all_tickers]
+
+
+def _parse_ticker_option(raw: str) -> str:
+    raw = (raw or "").strip()
+    symbol = raw.split(" — ")[0] if " — " in raw else raw
+    return symbol.strip().upper()
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -62,25 +79,20 @@ st.set_page_config(page_title="Stock Outlook Dashboard", page_icon="📈", layou
 st.title("📈 Stock Outlook Dashboard")
 st.caption("ความน่าจะเป็นขึ้น/ลง และช่วงราคาที่คาดวันถัดไป คำนวณจากความผันผวนของราคาย้อนหลังจริง — ไม่ใช่คำแนะนำการลงทุน")
 
-POPULAR_TICKERS = [
-    "GOOGL", "GOOG", "AAPL", "MSFT", "AMZN", "META", "NVDA", "TSLA", "AVGO", "AMD",
-    "NFLX", "ADBE", "CRM", "ORCL", "INTC", "MU", "QCOM", "TXN", "IBM", "CSCO",
-    "JPM", "BAC", "WFC", "GS", "V", "MA", "PYPL", "DIS", "KO", "PEP",
-    "WMT", "COST", "HD", "NKE", "MCD", "SBUX", "PG", "JNJ", "PFE", "UNH",
-    "XOM", "CVX", "BA", "CAT", "GE", "F", "GM", "UBER", "ABNB", "SHOP",
-    "SPY", "QQQ", "VOO", "DIA", "PTT.BK", "AOT.BK", "CPALL.BK", "SCB.BK", "KBANK.BK", "ADVANC.BK",
-]
+ticker_options = _cached_ticker_options()
+default_option = next((o for o in ticker_options if o.startswith("GOOGL — ")), ticker_options[0])
 
 col_a, col_b, col_c = st.columns([2, 1, 1])
 with col_a:
-    ticker = st.selectbox(
+    ticker_raw = st.selectbox(
         "Ticker",
-        options=POPULAR_TICKERS,
-        index=POPULAR_TICKERS.index("GOOGL"),
+        options=ticker_options,
+        index=ticker_options.index(default_option),
         accept_new_options=True,
         placeholder="พิมพ์หรือเลือก ticker เช่น GOOGL, AAPL, PTT.BK",
     )
-    ticker = (ticker or "").strip().upper()
+    ticker = _parse_ticker_option(ticker_raw)
+    st.caption(f"รายชื่อหุ้นสหรัฐฯ ทั้งหมด {len(ticker_options) - len(THAI_TICKERS):,} ตัว + หุ้นไทยคัดสรร {len(THAI_TICKERS)} ตัว — พิมพ์ ticker อื่นที่ไม่อยู่ในลิสต์ได้เช่นกัน")
 with col_b:
     period = st.selectbox("ช่วงข้อมูลย้อนหลัง", ["3mo", "6mo", "1y", "2y"], index=1)
 with col_c:

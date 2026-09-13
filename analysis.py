@@ -724,3 +724,72 @@ def fetch_next_earnings_date(ticker: str) -> str | None:
         return str(upcoming.index[-1].date())
     except Exception:
         return None
+
+
+NASDAQ_LISTED_URL = "https://nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+OTHER_LISTED_URL = "https://nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+
+# Thai SET tickers aren't published anywhere with a simple free bulk feed
+# (unlike NASDAQ Trader's US listings below), so this is just a small
+# hand-picked set of well-known names to keep Thai-market search useful.
+THAI_TICKERS = [
+    ("PTT.BK", "PTT Public Company Limited"),
+    ("AOT.BK", "Airports of Thailand"),
+    ("CPALL.BK", "CP All"),
+    ("SCB.BK", "SCB X"),
+    ("KBANK.BK", "Kasikornbank"),
+    ("ADVANC.BK", "Advanced Info Service"),
+    ("BBL.BK", "Bangkok Bank"),
+    ("PTTEP.BK", "PTT Exploration and Production"),
+    ("SCC.BK", "Siam Cement"),
+    ("CPF.BK", "Charoen Pokphand Foods"),
+    ("TRUE.BK", "True Corporation"),
+    ("DELTA.BK", "Delta Electronics (Thailand)"),
+    ("GULF.BK", "Gulf Energy Development"),
+    ("BDMS.BK", "Bangkok Dusit Medical Services"),
+    ("HMPRO.BK", "Home Product Center"),
+]
+
+
+def fetch_us_ticker_directory() -> list[tuple[str, str]]:
+    """Full directory of active, ordinary-share US common stocks from
+    NASDAQ Trader's official (free, no key needed) symbol listing files --
+    covers NASDAQ + NYSE + NYSE American + Arca + Cboe BZX. Excludes ETFs,
+    warrants, rights, units, preferred shares, and test issues to keep this
+    focused on plain common stocks. Returns [] on any network failure so
+    callers can fall back to a smaller hardcoded list."""
+    try:
+        nasdaq_text = requests.get(NASDAQ_LISTED_URL, timeout=15).text
+        other_text = requests.get(OTHER_LISTED_URL, timeout=15).text
+    except Exception:
+        return []
+
+    def parse(text: str, symbol_idx: int, name_idx: int, test_idx: int, etf_idx: int):
+        lines = text.strip().split("\n")[1:-1]  # drop header + "File Creation Time" footer
+        rows = []
+        for line in lines:
+            parts = line.split("|")
+            if len(parts) <= max(symbol_idx, name_idx, test_idx, etf_idx):
+                continue
+            rows.append((parts[symbol_idx], parts[name_idx], parts[test_idx], parts[etf_idx]))
+        return rows
+
+    try:
+        rows = (
+            parse(nasdaq_text, symbol_idx=0, name_idx=1, test_idx=3, etf_idx=6)
+            + parse(other_text, symbol_idx=0, name_idx=1, test_idx=6, etf_idx=4)
+        )
+    except Exception:
+        return []
+
+    exclude_keywords = ("warrant", "right", "unit", "preferred", " notes", "depositary shares each representing")
+    combined: dict[str, str] = {}
+    for symbol, name, test_issue, etf in rows:
+        symbol = symbol.strip()
+        if not symbol or test_issue == "Y" or etf == "Y" or "$" in symbol:
+            continue
+        if any(k in name.lower() for k in exclude_keywords):
+            continue
+        combined[symbol] = name.strip()
+
+    return sorted(combined.items())
