@@ -1,0 +1,6 @@
+streamlit>=1.38
+yfinance>=0.2.43
+pandas>=2.0
+plotly>=5.20
+deep-translator>=1.11
+trafilatura>=2.0
