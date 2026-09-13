@@ -62,9 +62,25 @@ st.set_page_config(page_title="Stock Outlook Dashboard", page_icon="📈", layou
 st.title("📈 Stock Outlook Dashboard")
 st.caption("ความน่าจะเป็นขึ้น/ลง และช่วงราคาที่คาดวันถัดไป คำนวณจากความผันผวนของราคาย้อนหลังจริง — ไม่ใช่คำแนะนำการลงทุน")
 
+POPULAR_TICKERS = [
+    "GOOGL", "GOOG", "AAPL", "MSFT", "AMZN", "META", "NVDA", "TSLA", "AVGO", "AMD",
+    "NFLX", "ADBE", "CRM", "ORCL", "INTC", "MU", "QCOM", "TXN", "IBM", "CSCO",
+    "JPM", "BAC", "WFC", "GS", "V", "MA", "PYPL", "DIS", "KO", "PEP",
+    "WMT", "COST", "HD", "NKE", "MCD", "SBUX", "PG", "JNJ", "PFE", "UNH",
+    "XOM", "CVX", "BA", "CAT", "GE", "F", "GM", "UBER", "ABNB", "SHOP",
+    "SPY", "QQQ", "VOO", "DIA", "PTT.BK", "AOT.BK", "CPALL.BK", "SCB.BK", "KBANK.BK", "ADVANC.BK",
+]
+
 col_a, col_b, col_c = st.columns([2, 1, 1])
 with col_a:
-    ticker = st.text_input("Ticker", value="MU").strip().upper()
+    ticker = st.selectbox(
+        "Ticker",
+        options=POPULAR_TICKERS,
+        index=POPULAR_TICKERS.index("GOOGL"),
+        accept_new_options=True,
+        placeholder="พิมพ์หรือเลือก ticker เช่น GOOGL, AAPL, PTT.BK",
+    )
+    ticker = (ticker or "").strip().upper()
 with col_b:
     period = st.selectbox("ช่วงข้อมูลย้อนหลัง", ["3mo", "6mo", "1y", "2y"], index=1)
 with col_c:
