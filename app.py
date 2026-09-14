@@ -390,7 +390,10 @@ def _momentum_and_forecast(stats):
                 return "background-color: rgba(239,68,68,0.28)"  # down since last refresh
             return ""
 
-        display_df = pd.DataFrame({"นาทีที่": [f"+{m} นาที" for m in hist_moves.minutes]})
+        now = datetime.now()
+        display_df = pd.DataFrame({
+            "นาทีที่": [f"{(now + timedelta(minutes=m)).strftime('%H:%M')} (+{m} นาที)" for m in hist_moves.minutes]
+        })
         color_df = pd.DataFrame({"นาทีที่": [""] * len(hist_moves.minutes)})
         sign = {"ขึ้นสูงสุด (ค่ากลาง)": "+", "ขึ้นสูงสุด (กว้าง ~90th)": "+", "ลงสูงสุด (ค่ากลาง)": "", "ลงสูงสุด (กว้าง ~10th)": ""}
         for col_name, pcts in pct_cols.items():
