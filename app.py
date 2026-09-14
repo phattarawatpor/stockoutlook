@@ -31,7 +31,7 @@ from analysis import (
     fetch_news,
     fetch_next_earnings_date,
     fetch_us_ticker_directory,
-    is_us_market_closed_today,
+    get_us_market_session,
     project_range_from_price,
     text_to_speech_thai,
     translate_long_text_to_thai,
@@ -71,7 +71,8 @@ try:
 except Exception:
     MYMEMORY_EMAIL = ""
 
-MARKET_CLOSED_TODAY = is_us_market_closed_today()
+MARKET_SESSION = get_us_market_session()  # "closed" | "pre-market" | "regular" | "after-hours"
+MARKET_CLOSED_TODAY = MARKET_SESSION == "closed"
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -219,11 +220,15 @@ st.markdown("### ราคาคาดการณ์แบบเรียลไ
 
 HAS_ALPACA = bool(ALPACA_KEY_ID and ALPACA_SECRET_KEY)
 
-if MARKET_CLOSED_TODAY:
+if MARKET_SESSION == "closed":
     st.info(
-        "📅 วันนี้ตลาดหุ้นสหรัฐฯ ปิด (เสาร์-อาทิตย์ หรือวันหยุด NYSE) — แสดงข้อมูลล่าสุดที่มี "
+        "📅 วันนี้ตลาดหุ้นสหรัฐฯ ปิด (เสาร์-อาทิตย์ หรือวันหยุด NYSE หรืออยู่นอกช่วงเวลาซื้อขาย) — แสดงข้อมูลล่าสุดที่มี "
         "โดย**ไม่รีเฟรชอัตโนมัติ** เพื่อไม่ให้ดึงข้อมูลซ้ำโดยเปล่าประโยชน์"
     )
+elif MARKET_SESSION == "pre-market":
+    st.info("🌅 ช่วง pre-market (ก่อนตลาดเปิดปกติ) — ยังรีเฟรชอัตโนมัติได้ แต่ราคาช่วงนี้ผันผวนสูงและปริมาณซื้อขายบางกว่าปกติมาก")
+elif MARKET_SESSION == "after-hours":
+    st.info("🌆 ช่วง after-hours (หลังตลาดปิดปกติ) — ยังรีเฟรชอัตโนมัติได้ แต่ราคาช่วงนี้ผันผวนสูงและปริมาณซื้อขายบางกว่าปกติมาก")
 
 
 @st.fragment(run_every=None if MARKET_CLOSED_TODAY else (5 if HAS_ALPACA else 30))
@@ -247,12 +252,17 @@ def _live_price(stats):
 
     lo_typ, hi_typ, lo_wide, hi_wide = project_range_from_price(stats, live_price)
 
+    session_label = {
+        "pre-market": " · 🌅 pre-market",
+        "after-hours": " · 🌆 after-hours",
+    }.get(MARKET_SESSION, "")
+
     if MARKET_CLOSED_TODAY:
         source_badge = ":gray[● ตลาดปิด] · ไม่มีการรีเฟรชอัตโนมัติวันนี้"
     elif is_realtime:
-        source_badge = ":green[● เรียลไทม์ (Alpaca / IEX)] · อัปเดตทุก 5 วินาที"
+        source_badge = f":green[● เรียลไทม์ (Alpaca / IEX)] · อัปเดตทุก 5 วินาที{session_label}"
     else:
-        source_badge = ":gray[● ดีเลย์ ~15-20 นาที (Yahoo Finance)] · อัปเดตทุก 30 วินาที"
+        source_badge = f":gray[● ดีเลย์ ~15-20 นาที (Yahoo Finance)] · อัปเดตทุก 30 วินาที{session_label}"
 
     l1, l2 = st.columns([2, 3])
     with l1:

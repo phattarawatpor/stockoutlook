@@ -61,15 +61,43 @@ class NYSEHolidayCalendar(AbstractHolidayCalendar):
     ]
 
 
+def _is_nyse_trading_day(day) -> bool:
+    if day.weekday() >= 5:  # Saturday=5, Sunday=6
+        return False
+    holidays = NYSEHolidayCalendar().holidays(start=day, end=day)
+    return len(holidays) == 0
+
+
+def get_us_market_session() -> str:
+    """Current US equity market session, in US Eastern time (NYSE's own
+    timezone): one of "closed", "pre-market" (04:00-09:30 ET), "regular"
+    (09:30-16:00 ET), or "after-hours" (16:00-20:00 ET). "closed" covers
+    weekends, NYSE holidays, and the overnight gap outside extended trading
+    hours -- i.e. times when polling for fresh data is pointless because
+    nothing is trading."""
+    now_et = datetime.now(US_EASTERN)
+    if not _is_nyse_trading_day(now_et.date()):
+        return "closed"
+
+    minute_of_day = now_et.hour * 60 + now_et.minute
+    pre_market_start = 4 * 60
+    regular_start = 9 * 60 + 30
+    regular_end = 16 * 60
+    after_hours_end = 20 * 60
+
+    if minute_of_day < pre_market_start or minute_of_day >= after_hours_end:
+        return "closed"
+    if minute_of_day < regular_start:
+        return "pre-market"
+    if minute_of_day < regular_end:
+        return "regular"
+    return "after-hours"
+
+
 def is_us_market_closed_today() -> bool:
-    """True on weekends or NYSE holidays (checked in US Eastern time,
-    the exchange's own timezone) -- i.e. days when polling for fresh US
-    intraday/real-time data is pointless because nothing will move."""
-    today_et = datetime.now(US_EASTERN).date()
-    if today_et.weekday() >= 5:  # Saturday=5, Sunday=6
-        return True
-    holidays = NYSEHolidayCalendar().holidays(start=today_et, end=today_et)
-    return len(holidays) > 0
+    """True on weekends or NYSE holidays (checked in US Eastern time) --
+    i.e. days with no trading session at all, regardless of time of day."""
+    return not _is_nyse_trading_day(datetime.now(US_EASTERN).date())
 
 
 @dataclass
@@ -528,9 +556,13 @@ def _rsi(closes: list[float], period: int = 14) -> float | None:
 def fetch_intraday(ticker: str) -> pd.DataFrame | None:
     """Today's 1-minute OHLC bars, or None if unavailable (market closed,
     thin ticker, request failure, etc). Shared source for the momentum
-    signal and the minute-ahead projection so both reuse one API call."""
+    signal and the minute-ahead projection so both reuse one API call.
+    Includes pre-market/after-hours bars (prepost=True) -- without this,
+    yfinance silently drops extended-hours data, which would make
+    refreshing during those sessions pointless since the bars would just
+    be stale leftovers from the prior regular session."""
     try:
-        df = yf.Ticker(ticker).history(period="1d", interval="1m", auto_adjust=False)
+        df = yf.Ticker(ticker).history(period="1d", interval="1m", auto_adjust=False, prepost=True)
     except Exception:
         return None
     if df.empty:
