@@ -12,10 +12,13 @@ Run:
 This is a statistical / educational tool, NOT investment advice.
 """
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+THAI_TZ = ZoneInfo("Asia/Bangkok")
 
 from analysis import (
     THAI_TICKERS,
@@ -315,7 +318,7 @@ def _momentum_and_forecast(stats):
         st.caption("ข้อมูลไม่พอสำหรับกราฟคาดการณ์นาทีข้างหน้า")
         return
 
-    now = datetime.now()
+    now = datetime.now(THAI_TZ)
     x_now = [now]
     x_future = [now + timedelta(minutes=m) for m in projection.minutes]
 
@@ -390,7 +393,7 @@ def _momentum_and_forecast(stats):
                 return "background-color: rgba(239,68,68,0.28)"  # down since last refresh
             return ""
 
-        now = datetime.now()
+        now = datetime.now(THAI_TZ)
         display_df = pd.DataFrame({
             "นาทีที่": [f"{(now + timedelta(minutes=m)).strftime('%H:%M')} (+{m} นาที)" for m in hist_moves.minutes]
         })
